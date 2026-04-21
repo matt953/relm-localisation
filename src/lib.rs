@@ -44,16 +44,18 @@ impl Localiser {
     /// Create a new Localiser for the given locale code (e.g., "en", "fr").
     /// Falls back to English if the locale is not supported.
     pub fn new(locale: &str) -> Self {
+        let resolved = bundle::negotiate_locale(locale);
         Self {
-            bundle: bundle::build_bundle(locale),
-            locale: locale.to_string(),
+            bundle: bundle::build_bundle(resolved),
+            locale: resolved.to_string(),
         }
     }
 
-    /// Change the active locale. Rebuilds the internal FluentBundle.
+    /// Change the active locale. Negotiates the best supported match and rebuilds the bundle.
     pub fn set_locale(&mut self, locale: &str) {
-        self.locale = locale.to_string();
-        self.bundle = bundle::build_bundle(locale);
+        let resolved = bundle::negotiate_locale(locale);
+        self.locale = resolved.to_string();
+        self.bundle = bundle::build_bundle(resolved);
     }
 
     /// Get the current locale code.
@@ -151,10 +153,21 @@ mod tests {
         let mut l10n = Localiser::new("en");
         assert_eq!(l10n.locale(), "en");
 
-        // Switching to unsupported locale should fallback to English
+        // Switching to unsupported locale should resolve to English fallback
         l10n.set_locale("zz");
-        assert_eq!(l10n.locale(), "zz");
-        assert_eq!(l10n.t("cancel"), "Cancel"); // English fallback
+        assert_eq!(l10n.locale(), "en"); // resolved to fallback
+        assert_eq!(l10n.t("cancel"), "Cancel");
+
+        // Switching to Chinese
+        l10n.set_locale("zh-CN");
+        assert_eq!(l10n.locale(), "zh-CN");
+
+        // Device-style tags should negotiate correctly
+        l10n.set_locale("zh-Hans-CN");
+        assert_eq!(l10n.locale(), "zh-CN"); // negotiated
+
+        l10n.set_locale("en-US");
+        assert_eq!(l10n.locale(), "en"); // negotiated to base
     }
 
     #[test]
