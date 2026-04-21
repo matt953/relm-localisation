@@ -8,5 +8,7 @@ repository = "https://github.com/matt953/relm-localisation"
 
 [dependencies]
 fluent = "0.16"
+fluent-bundle = "0.15"
 fluent-syntax = "0.11"
+intl-memoizer = "0.5"
 unic-langid = "0.9"

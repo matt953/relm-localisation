@@ -1,7 +1,14 @@
 //! FluentBundle management and locale loading
 
-use fluent::{FluentBundle, FluentResource};
+use fluent_bundle::bundle::FluentBundle;
+use fluent_bundle::FluentResource;
+use intl_memoizer::concurrent::IntlLangMemoizer;
 use unic_langid::LanguageIdentifier;
+
+/// Thread-safe FluentBundle type (uses concurrent IntlLangMemoizer).
+/// This is required because Crux stores Model (which contains Localiser)
+/// inside a LazyLock<Bridge> which requires Send + Sync.
+pub type ConcurrentFluentBundle = FluentBundle<FluentResource, IntlLangMemoizer>;
 
 /// All supported locales with their display names
 pub const SUPPORTED_LOCALES: &[(&str, &str)] = &[
@@ -43,15 +50,15 @@ fn ftl_sources_for_locale(locale: &str) -> &'static [&'static str] {
     }
 }
 
-/// Build a FluentBundle for the given locale, loading all .ftl resources.
-pub fn build_bundle(locale: &str) -> FluentBundle<FluentResource> {
+/// Build a thread-safe FluentBundle for the given locale, loading all .ftl resources.
+pub fn build_bundle(locale: &str) -> ConcurrentFluentBundle {
     let lang_id: LanguageIdentifier = locale
         .parse()
         .unwrap_or_else(|_| "en".parse().expect("en is valid"));
 
-    let mut bundle = FluentBundle::new(vec![lang_id]);
+    let mut bundle = ConcurrentFluentBundle::new_concurrent(vec![lang_id]);
 
-    // Allow overriding built-in Fluent functions if needed
+    // Disable Unicode isolation marks (they cause invisible characters in output)
     bundle.set_use_isolating(false);
 
     for source in ftl_sources_for_locale(locale) {

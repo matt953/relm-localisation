@@ -18,16 +18,27 @@
 
 mod bundle;
 
-use fluent::{FluentArgs, FluentBundle, FluentResource, FluentValue};
+use fluent_bundle::{FluentArgs, FluentValue};
 
 pub use bundle::SUPPORTED_LOCALES;
 
-/// Main localisation resolver. Holds a FluentBundle for the active locale
+/// Re-export FluentValue so consumers can construct args without depending on fluent_bundle directly.
+pub use fluent_bundle::FluentValue as Value;
+
+/// Main localisation resolver. Holds a thread-safe FluentBundle for the active locale
 /// and resolves translation keys to strings.
+///
+/// This type is `Send + Sync` and can be stored inside Crux's Model (which lives
+/// in a `LazyLock<Bridge>`).
 pub struct Localiser {
-    bundle: FluentBundle<FluentResource>,
+    bundle: bundle::ConcurrentFluentBundle,
     locale: String,
 }
+
+// SAFETY: ConcurrentFluentBundle uses IntlLangMemoizer from intl_memoizer::concurrent
+// which is designed to be Send + Sync.
+unsafe impl Send for Localiser {}
+unsafe impl Sync for Localiser {}
 
 impl Localiser {
     /// Create a new Localiser for the given locale code (e.g., "en", "fr").
@@ -176,5 +187,11 @@ mod tests {
         assert_eq!(l10n.t("sign-in"), "Sign In");
         // Accessibility
         assert_eq!(l10n.t("a11y-close"), "Close");
+    }
+
+    #[test]
+    fn test_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Localiser>();
     }
 }
